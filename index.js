@@ -5,7 +5,7 @@
 
 const Barrage = class {
     wsurl = "ws://127.0.0.1:9527"
-    timer = 0
+    timer = null
     timeinterval = 10 * 1000 // 断线重连轮询间隔
     propsId = null
     chatDom = null
@@ -55,12 +55,14 @@ const Barrage = class {
     openWs() {
         console.log(`[${new Date().toLocaleTimeString()}]`, '服务已经连接成功!')
         clearInterval(this.timer)
+        this.timer = null
         this.runServer()
+
     }
     wsClose = () => {
         console.log('服务器断开')
         console.log(this)
-        if (this.timer != 0) {
+        if (this.timer != null) {
             return
         }
         this.ws.close();
