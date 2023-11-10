@@ -4,6 +4,7 @@
 // }
 
 const Barrage = class {
+    roomId = location.href.match(/\/(\d+)/)?.[1] || null
     wsurl = "ws://127.0.0.1:9527"
     timer = null
     timeinterval = 10 * 1000 // 断线重连轮询间隔
@@ -102,7 +103,7 @@ const Barrage = class {
                         }
 
                         let msg = {
-                            ... { msg_content: `${msgText}` }
+                            ...{online: msgText ,roomId: this.roomId}
                         }
                         console.log(msg.msg_content)
                         if (this.eventRegirst.online) {
@@ -131,9 +132,10 @@ const Barrage = class {
                     if (mutation.type === 'childList' && mutation.addedNodes.length) {
                         let dom = mutation.addedNodes[0]
                         let user = dom[this.propsId].children.props.message.payload.user
+                        
                         let msg = {
                             ...this.getUser(user),
-                            ... { msg_content: `${user.nickname} 来了` }
+                            ... { nickname: `${user.nickname}` , roomId: this.roomId}
                         }
                         if (this.eventRegirst.join) {
                             this.event['join'](msg)
@@ -202,6 +204,7 @@ const Barrage = class {
             return null
         }
         let msg = dom[this.propsId].children.props.message.payload
+        /*
         let result = {
             repeatCount: null,
             gift_id: null,
@@ -211,23 +214,55 @@ const Barrage = class {
             gift_diamondCount: null,
             gift_describe: null,
         }
-
+gift_describe:"送出粉丝团灯牌"
+gift_diamondCount:1
+gift_id:"685"
+gift_image:"msg.gift.icon.urlListList[0]"
+gift_name:"粉丝团灯牌"
+gift_number:NaN
+isGift:true
+msg_content:"🍺月下酌🪳:送给主播 1个粉丝团灯牌"
+repeatCount:null
+user_avatar:"user.avatar_thumb.urlList[0]"
+user_fansLevel:0
+user_fansLightName:""
+user_gender:"男"
+user_id:"97996305244"
+user_isAdmin:"user.userAttr.isAdmin"
+user_level:0
+user_levelImage:""
+user_nickName:"🍺月下酌 
+        
+        */
+        let result = {
+            roomId: this.roomId,
+            gift_id: null,
+            gift_name: null,
+            gift_number: null,
+            user_nickName: null
+        }
         result = Object.assign(result, this.getUser(msg.user))
         switch (msg.common.method) {
             case 'WebcastGiftMessage':
-                // console.log(msg)
-
+                /*
                 result = Object.assign(result, {
                     // repeatCount: parseInt(),
-                    msg_content: msg.common.describe,
+                    msg_content: msg.common.describe ,
                     isGift: true,
                     gift_id: msg.gift.id,
                     gift_name: msg.gift.name,
                     // gift_number: parseInt(msg.comboCount),
                     gift_number: parseInt(msg.repeatCount),
                     gift_image: "msg.gift.icon.urlListList[0]",
-                    gift_diamondCount: msg.gift.diamondCount,
+                    gift_diamondCount: msg.gift.diamond_count,
                     gift_describe: msg.gift.describe,
+                })
+                */
+                result = Object.assign(result, {
+                    gift_id: msg.gift_id,
+                    gift_name: msg.gift_name,
+                    gift_number: msg.gift_diamondCount,
+                    user_nickName: msg.user_nickName
                 })
                 break
             case 'WebcastChatMessage':
@@ -243,6 +278,7 @@ const Barrage = class {
                 })
                 break
         }
+        console.log(result)
         return result
     }
 }

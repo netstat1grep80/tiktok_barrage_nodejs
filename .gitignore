@@ -105,3 +105,4 @@ dist
 .vscode
 .github
 .idea
+test*
