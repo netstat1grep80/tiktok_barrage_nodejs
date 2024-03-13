@@ -1,9 +1,5 @@
-// 测试
-// window.onDouyinServer = function() {
-//     new Barrage({ message: false })
-// }
-
 const Barrage = class {
+    roomUserName = null
     roomId = location.href.match(/\/(\d+)/)?.[1] || null
     wsurl = "ws://127.0.0.1:9527"
     timer = null
@@ -19,7 +15,7 @@ const Barrage = class {
     option = {}
     event = {}
     eventRegirst = {}
-    constructor(option = { message: true, join: true, online: true}) {
+    constructor(option = { message: true, join: true, online: false}) {
         this.option = option
         let { link, removePlay } = option
         if (link) {
@@ -32,11 +28,23 @@ const Barrage = class {
         this.chatDom = document.querySelector('.webcast-chatroom___items').children[0]
         this.roomJoinDom = document.querySelector('.webcast-chatroom___bottom-message')
         this.onlineNumberDom = this.getOnlineNumberDom()
+        this.roomUserName = this.getCurrentUserName()
         this.ws = new WebSocket(this.wsurl)
         this.ws.onclose = this.wsClose
         this.ws.onopen = () => {
             this.openWs()
         }
+    }
+    getCurrentUserName(){
+        var rows = document.querySelectorAll("div[data-e2e]");
+        for(var i=0 ;i < rows.length ;i ++){
+            var row = rows[i];
+            if(row.attributes['data-e2e'].value == 'live-room-nickname'){
+                return row.innerHTML
+            }
+        }
+        return null
+
     }
     getOnlineNumberDom(){
         var rows = document.querySelectorAll("div[data-e2e]");
@@ -53,7 +61,7 @@ const Barrage = class {
         this.eventRegirst[e] = true
         this.event[e] = cb
     }
-    openWs() {
+    openWs = () => {
         console.log(`[${new Date().toLocaleTimeString()}]`, '服务已经连接成功!')
         clearInterval(this.timer)
         this.timer = null
@@ -62,26 +70,38 @@ const Barrage = class {
     }
     wsClose = () => {
         console.log('服务器断开')
-        console.log(this)
         if (this.timer != null) {
             return
         }
-        this.ws.close();
+        if (this.ws) {
+            this.ws.close();
+        }
         this.observer && this.observer.disconnect();
         this.chatObserverrom && this.chatObserverrom.disconnect();
         this.onlineObserver && this.onlineObserver.disconnect();
         console.log(this)
         
-        this.timer = setInterval(() => {
-            console.log('正在等待服务器启动..')
-            this.ws = new WebSocket(this.wsurl);
-            console.log('状态 ->', this.ws.readyState)
-            setTimeout(() => {
-                if (this.ws.readyState === 1) {
-                    this.openWs()
-                }
-            }, 2000)
 
+        this.timer = setInterval(() => {
+                console.log('正在等待服务器启动..')
+                this.ws = new WebSocket(this.wsurl);
+                this.ws.onclose = this.wsClose
+                
+                // 设置连接超时
+                const connectionTimeout = setTimeout(() => {
+                    console.log('kill socket')
+                    // 关闭 WebSocket 连接
+                    this.ws.close();
+                    
+                }, 5000); // 设置超时时间，这里设为 5 秒
+                
+                console.log('状态 ->', this.ws.readyState)
+                setTimeout(() => {
+                    if (this.ws.readyState === 1) {
+                        clearTimeout(connectionTimeout);
+                        this.openWs()
+                    }
+                }, 2000)
         }, this.timeinterval)
         
         
@@ -90,9 +110,7 @@ const Barrage = class {
         let _this = this
         console.log(this.option)
         if (this.option.online) {
-            console.log(this.onlineNumberDom)
-
-            
+                        
             this.onlineObserver = new MutationObserver((mutationsList) => {
                 for (let mutation of mutationsList) {
                     if (mutation.type === 'childList' || mutation.type === 'characterData') {
@@ -103,9 +121,9 @@ const Barrage = class {
                         }
 
                         let msg = {
-                            ...{online: msgText ,roomId: this.roomId}
+                            ...{online: msgText ,roomId: this.roomId, roomUserName:this.roomUserName}
                         }
-                        console.log(msg.msg_content)
+                        // console.log(msg.msg_content)
                         if (this.eventRegirst.online) {
                             this.event['online'](msg)
                         }
@@ -115,11 +133,12 @@ const Barrage = class {
                 }
                 
             });
+
             this.onlineObserver.observe(this.onlineNumberDom, {
                 attributes: true,
-                attributeOldValue: true,
+                attributeOldValue: false,
                 characterData: true,
-                characterDataOldValue: true,
+                characterDataOldValue: false,
                 childList: true,
                 subtree: true
             });
@@ -130,17 +149,27 @@ const Barrage = class {
             this.observer = new MutationObserver((mutationsList) => {
                 for (let mutation of mutationsList) {
                     if (mutation.type === 'childList' && mutation.addedNodes.length) {
-                        let dom = mutation.addedNodes[0]
-                        let user = dom[this.propsId].children.props.message.payload.user
-                        
-                        let msg = {
-                            ...this.getUser(user),
-                            ... { nickname: `${user.nickname}` , roomId: this.roomId}
+                        let b = mutation.addedNodes[0]
+                        // let user = dom[this.propsId].children.props.message.payload.user
+                        try{
+                            if (b[this.propsId].children.props.message) {
+                                let message =  this.messageParse(b)
+                                if(message){
+                                    /*
+                                    let msg = {
+                                        ...this.getUser(user),
+                                        ...{ nickname: `${user.nickname}` , roomId: this.roomId}
+                                    }
+                                    */
+                                    if (this.eventRegirst.join) {
+                                        this.event['join'](message)
+                                    }
+                                    this.ws.send(JSON.stringify({ action: 'join', message: message }));
+                                }
+                            }
+                        }catch(error){
+                            console.log(b)
                         }
-                        if (this.eventRegirst.join) {
-                            this.event['join'](msg)
-                        }
-                        this.ws.send(JSON.stringify({ action: 'join', message: msg }));
                     }
                 }
             });
@@ -148,18 +177,18 @@ const Barrage = class {
 
         }
 
-        this.chatObserverrom = new MutationObserver((mutationsList, observer) => {
+        this.chatObserverrom = new MutationObserver((mutationsList) => {
+            
             for (let mutation of mutationsList) {
                 if (mutation.type === 'childList' && mutation.addedNodes.length) {
+                    
                     let b = mutation.addedNodes[0]
+                    // console.log(b[this.propsId])
                     if (b[this.propsId].children.props.message) {
                         let message = this.messageParse(b)
-                        if (message) {
+                        if (message != null) {
                             if (this.eventRegirst.message) {
-                                this.event['join'](message)
-                            }
-                            if (_this.option.message === false && !message.isGift) {
-                                return
+                                this.event['message'](message)
                             }
                             this.ws.send(JSON.stringify({ action: 'message', message: message }));
                         }
@@ -169,21 +198,37 @@ const Barrage = class {
         });
         this.chatObserverrom.observe(this.chatDom, { childList: true });
     }
-    getUser(user) {
+    getUser(user, action) {
         if (!user) {
             return
         }
-        let msg = {
-            user_level: this.getLevel(user.badgeImageList, 1),
-            user_fansLevel: this.getLevel(user.badgeImageList, 7),
-            user_id: user.id,
-            user_nickName: user.nickname,
-            user_avatar: "user.avatar_thumb.urlList[0]",
-            user_gender: user.gender === 1 ? '男' : '女',
-            user_isAdmin: "user.userAttr.isAdmin",
-            user_fansLightName: "",
-            user_levelImage: ""
+        let msg = {}
+        try{
+            msg = { 
+                user_level: this.getLevel(user.badge_image_list, 1),
+                user_fansLevel: this.getLevel(user.badge_image_list, 7),
+                user_info:user,
+                user_id: user.id,
+                user_short_id: user.short_id,
+                user_sec_id: user.sec_uid,
+                user_display_id: user.display_id,
+                user_nickName: user.nickname,
+                user_pay_grade: user.pay_grade.level,
+                user_avatar: user.avatar_thumb.url_list[0],
+                user_gender: user.gender === 1 ? '男' : '女',
+                user_isfollower: user.isfollower == true ? '关注主播':'未关注主播',
+                user_isfollowing: user.isfollowing == true ? '被主播关注':'未被主播关注',
+                user_follower_count: user.follow_info.follower_count, //粉丝
+                user_following_count: user.follow_info.following_count, //关注
+                user_isAdmin: typeof(user.user_attr) == 'undefined' || user.user_attr == null  ? action : user.user_attr.is_admin
+            }
+            // console.log(msg)
+        }catch(e){
+            console.log(e)
+            console.log('error:' + action)
+            console.log(user)
         }
+        
         return msg
     }
     getLevel(arr, type) {
@@ -200,85 +245,101 @@ const Barrage = class {
         }
     }
     messageParse(dom) {
+        // console.log(dom[this.propsId])
         if (!dom[this.propsId].children.props.message) {
             return null
         }
         let msg = dom[this.propsId].children.props.message.payload
-        /*
+  
         let result = {
-            repeatCount: null,
-            gift_id: null,
-            gift_name: null,
-            gift_number: null,
-            gift_image: null,
-            gift_diamondCount: null,
-            gift_describe: null,
-        }
-gift_describe:"送出粉丝团灯牌"
-gift_diamondCount:1
-gift_id:"685"
-gift_image:"msg.gift.icon.urlListList[0]"
-gift_name:"粉丝团灯牌"
-gift_number:NaN
-isGift:true
-msg_content:"🍺月下酌🪳:送给主播 1个粉丝团灯牌"
-repeatCount:null
-user_avatar:"user.avatar_thumb.urlList[0]"
-user_fansLevel:0
-user_fansLightName:""
-user_gender:"男"
-user_id:"97996305244"
-user_isAdmin:"user.userAttr.isAdmin"
-user_level:0
-user_levelImage:""
-user_nickName:"🍺月下酌 
-        
-        */
-        let result = {
+            roomUserName:this.roomUserName,
             roomId: this.roomId,
             gift_id: null,
             gift_name: null,
             gift_number: null,
-            user_nickName: null
+            user_nickName: null,
+            method: msg.common.method
         }
-        result = Object.assign(result, this.getUser(msg.user))
+      
+       
+        result = Object.assign(result, this.getUser(msg.user, msg.common.method))
+        // console.log(msg.common.method)
         switch (msg.common.method) {
-            case 'WebcastGiftMessage':
-                /*
-                result = Object.assign(result, {
-                    // repeatCount: parseInt(),
-                    msg_content: msg.common.describe ,
-                    isGift: true,
-                    gift_id: msg.gift.id,
-                    gift_name: msg.gift.name,
-                    // gift_number: parseInt(msg.comboCount),
-                    gift_number: parseInt(msg.repeatCount),
-                    gift_image: "msg.gift.icon.urlListList[0]",
-                    gift_diamondCount: msg.gift.diamond_count,
-                    gift_describe: msg.gift.describe,
-                })
-                */
-                result = Object.assign(result, {
-                    gift_id: msg.gift_id,
-                    gift_name: msg.gift_name,
-                    gift_number: msg.gift_diamondCount,
-                    user_nickName: msg.user_nickName
-                })
-                break
-            case 'WebcastChatMessage':
+            case 'WebcastExhibitionChatMessage':
+                return null
+                result = Object.assign(result, this.getUser(msg.common.display_text.pieces[0].user_value.user))
+                // console.log(result)
+                // console.log(msg)
+                let temp = typeof(msg.common.display_text.pieces[1])!='undefined' ?  msg.common.display_text.pieces[1].string_value : 0
+                //恭喜{0:user}升级到{1:string}
+                
                 result = Object.assign(result, {
                     isGift: false,
-                    msg_content: msg.content
+                    msg_content: msg.common.display_text.default_pattern.replace('{0:user}',result.user_nickName).replace('{1:string}', temp)
+                })
+                // console.log(dom[this.propsId].children.props.message)
+                
+                break;
+            case 'WebcastRoomMessage':
+                
+                return null
+                result = Object.assign(result, this.getUser(msg.common.display_text.pieces[0].user_value.user))
+                // console.log(result)
+                // console.log(msg)
+                let level_num = typeof(msg.common.display_text.pieces[1])!='undefined' ?  msg.common.display_text.pieces[1].string_value : 0
+                //恭喜{0:user}升级到{1:string} 或者 {0:user} 推荐直播给Ta的朋友
+                result = Object.assign(result, {
+                    isGift: false,
+                    msg_content: msg.common.display_text.default_pattern.replace('{0:user}',result.user_nickName).replace('{1:string}', level_num)
+                })
+                // console.log(dom[this.propsId].children.props.message)
+                break;
+            case 'WebcastGiftMessage':
+                if(msg.combo_count>1){
+                    console.log(msg)
+                }
+                result = Object.assign(result, {
+                    isGift: true,
+                    gift_id: msg.gift_id,
+                    gift_name: msg.gift.name,
+                    gift_number: msg.combo_count,
+                    user_nickName: msg.user.nickname
                 })
                 break
+          
             default:
+                //WebcastExhibitionChatMessage
+                //"WebcastMemberMessage"
+                //WebcastLikeMessage
+                /*
+                100 WebcastRoomStatsMessage
+  71 WebcastRoomStreamAdaptationMessage
+  63 WebcastRanklistHourEntranceMessage
+  25 WebcastInRoomBannerMessage
+  14 WebcastRoomRankMessage
+   7 WebcastRoomDataSyncMessage
+   6 WebcastEmojiChatMessage
+   4 WebcastUpdateFanTicketMessage
+   3 WebcastSocialMessage
+   1 WebcastRoomMessage
+   */
+  
+   
+                let methods = ['WebcastExhibitionChatMessage','WebcastMemberMessage','WebcastLikeMessage','WebcastGiftMessage','WebcastFansclubMessage','WebcastChatMessage']
+                if( methods.includes(msg.common.method) == false ){
+                    console.log(msg.common.method)
+                    console.log(msg)
+                }
+                
+               
                 result = Object.assign(result, {
                     isGift: false,
                     msg_content: msg.content
                 })
                 break
         }
-        console.log(result)
+        
+        
         return result
     }
 }

@@ -8,6 +8,7 @@ npm run dev
 - 2.进入直播间页面，打开浏览器按 F12 控制台 注入下面代码
 
 ```javascript
+console.clear()
 var scriptElement = document.createElement('script')
 scriptElement.src = 'http://127.0.0.1/client.js?t=' + Math.random()
 document.body.appendChild(scriptElement)
