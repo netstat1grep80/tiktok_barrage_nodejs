@@ -1,8 +1,7 @@
-```
-说明
+##说明
 ```
 本代码完全来自于 https://github.com/5ime/Tiktok_Signature 作者开发，我只是自己使用时修改了一些bug，并且将嵌入的js移植到本地的nginx上。
-
+```
 
 - 1.打开项目跟目录 安装 node 依赖 并运行
 
@@ -71,15 +70,11 @@ document.body.appendChild(scriptElement)
 考虑到编程语言环境问题,使用易语言开发了 WSLINK.exe(易语言编写请误杀),
 启动软件后开启 websocket 服务 ws://127.0.0.1:9527 , 其他编程语言或前端直接监听就好了。
 
-```
-注意事项
-```
+##注意事项
 
 本工具仅供学习交流使用，请勿用于非法和商业用途；
 本工具基于抖音加密算法实现，算法可能会随时更新，故本工具也可能无法正常使用；
 
-```
-参考项目
-```
+##参考项目
 
 https://github.com/5ime/Tiktok_Signature
